@@ -1,0 +1,5 @@
+backend/.venv
+fronted/node_modules
+backend/.env
+orchestrator/.env
+.env
