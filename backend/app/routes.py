@@ -1,236 +1,186 @@
-# routes.py
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import json
 import os
 import sys
 from dotenv import load_dotenv
-from models import (
+
+# Import models from same folder
+from .models import (
     VisionAgentRequest, VisionAgentResponse,
     CodeAgentRequest, CodeAgentResponse,
     EvaluatorAgentRequest, EvaluatorAgentResponse,
     OrchestratorRequest, OrchestratorResponse
 )
 
-# Add the orchestrator directory to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../orchestrator'))
+# ✅ Dynamically add orchestrator path for imports
+# Detect whether agents are inside /orchestrator or /orchestrator/agents
+base_orchestrator_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../orchestrator"))
+agents_path = os.path.join(base_orchestrator_path, "agents")
 
-# Import your existing agents
-from agents.vision_agent import process_input
-from agents.code_agent import generate_code
-from agents.evaluator_agent import validate_code
+if os.path.exists(agents_path):
+    sys.path.append(agents_path)
+else:
+    sys.path.append(base_orchestrator_path)
 
-# Load environment variables
+# ✅ Import your agents
+from vision_agent import process_input
+from code_agent import generate_code
+from evaluator_agent import validate_code
+
+# ✅ Optional: Import Groq client (for streaming endpoint)
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
+# ✅ Load environment variables
 load_dotenv()
-
 router = APIRouter(prefix="/api")
 
-# --- INDIVIDUAL AGENT ENDPOINTS ---
+# ✅ Initialize Groq client safely
+client = None
+if Groq is not None:
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        client = Groq(api_key=groq_api_key)
+
+
+# -------------------------------------------------------------------
+# --------------------- INDIVIDUAL AGENTS ----------------------------
+# -------------------------------------------------------------------
 
 @router.post("/vision", response_model=VisionAgentResponse)
 async def vision_agent_endpoint(request: VisionAgentRequest):
-    """
-    Vision Agent: Converts input (voice/sketch/text) into structured layout components
-    """
+    """Vision Agent: Converts voice/sketch/text into structured layout components"""
     try:
-        # Use your existing vision agent
         result = process_input(request.input_type, request.input_data)
-        
-        # Parse the result if it's a dictionary with layout key
-        if isinstance(result, dict) and "layout" in result:
-            layout_content = result["layout"]
-        else:
-            layout_content = str(result)
-        
-        # Try to parse JSON response for components and data elements
+        layout_content = str(result.get("layout") if isinstance(result, dict) and "layout" in result else result)
+
+        # Try to parse as JSON
         try:
-            if isinstance(layout_content, str) and layout_content.strip().startswith("{"):
-                parsed_result = json.loads(layout_content)
-                return VisionAgentResponse(
-                    layout=parsed_result.get("layout", layout_content),
-                    components=parsed_result.get("components", []),
-                    data_elements=parsed_result.get("data_elements", []),
-                    success=True
-                )
+            parsed = json.loads(layout_content)
+            return VisionAgentResponse(
+                layout=parsed.get("layout", layout_content),
+                components=parsed.get("components", []),
+                data_elements=parsed.get("data_elements", []),
+                success=True,
+            )
         except json.JSONDecodeError:
-            pass
-            
-        # If not JSON, return the raw result
-        return VisionAgentResponse(
-            layout=layout_content,
-            components=[],
-            data_elements=[],
-            success=True
-        )
-            
+            return VisionAgentResponse(layout=layout_content, components=[], data_elements=[], success=True)
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Vision Agent failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Vision Agent failed: {e}")
 
 
 @router.post("/code", response_model=CodeAgentResponse)
 async def code_agent_endpoint(request: CodeAgentRequest):
-    """
-    Code Agent: Generates frontend + backend code based on layout description
-    """
+    """Code Agent: Generates frontend + backend code based on layout description"""
     try:
-        # Use your existing code agent
         generated_code = generate_code(request.layout)
-        
-        if generated_code is None:
+        if not generated_code:
             raise HTTPException(status_code=500, detail="Code generation failed")
-        
-        return CodeAgentResponse(
-            generated_code=generated_code,
-            success=True
-        )
-        
+        return CodeAgentResponse(generated_code=generated_code, success=True)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Code Agent failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Code Agent failed: {e}")
 
 
 @router.post("/evaluate", response_model=EvaluatorAgentResponse)
 async def evaluator_agent_endpoint(request: EvaluatorAgentRequest):
-    """
-    Evaluator Agent: Reviews and validates generated code
-    """
+    """Evaluator Agent: Reviews and validates generated code"""
     try:
-        # Use your existing evaluator agent
         result = validate_code(request.generated_code)
-        
-        # Parse the result
-        if isinstance(result, dict):
-            return EvaluatorAgentResponse(
-                status=result.get("status", "ok"),
-                issues=result.get("issues", []),
-                suggestions=result.get("suggestions", []),
-                overall_feedback=result.get("overall_feedback", "Code reviewed successfully"),
-                success=True
-            )
-        elif isinstance(result, str):
-            # Try to parse JSON response
+        if isinstance(result, str):
             try:
-                parsed_result = json.loads(result)
-                return EvaluatorAgentResponse(
-                    status=parsed_result.get("status", "ok"),
-                    issues=parsed_result.get("issues", []),
-                    suggestions=parsed_result.get("suggestions", []),
-                    overall_feedback=parsed_result.get("overall_feedback", "Code reviewed successfully"),
-                    success=True
-                )
+                result = json.loads(result)
             except json.JSONDecodeError:
-                # If not valid JSON, return the raw result as feedback
                 return EvaluatorAgentResponse(
-                    status="ok",
-                    issues=[],
-                    suggestions=[],
-                    overall_feedback=result,
-                    success=True
+                    status="ok", issues=[], suggestions=[], overall_feedback=result, success=True
                 )
-        else:
-            return EvaluatorAgentResponse(
-                status="ok",
-                issues=[],
-                suggestions=[],
-                overall_feedback="Code evaluation completed",
-                success=True
-            )
-            
+        return EvaluatorAgentResponse(
+            status=result.get("status", "ok"),
+            issues=result.get("issues", []),
+            suggestions=result.get("suggestions", []),
+            overall_feedback=result.get("overall_feedback", "Code reviewed successfully"),
+            success=True,
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Evaluator Agent failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Evaluator Agent failed: {e}")
 
+
+# -------------------------------------------------------------------
+# --------------------- ORCHESTRATOR --------------------------------
+# -------------------------------------------------------------------
 
 @router.post("/orchestrate", response_model=OrchestratorResponse)
 async def orchestrate_endpoint(request: OrchestratorRequest):
-    """
-    Full orchestrator: Vision → Code → Evaluator
-    Runs all three agents in sequence and returns combined results
-    """
+    """Runs all three agents in sequence (Vision → Code → Evaluation)"""
     try:
         # Step 1: Vision Agent
-        vision_request = VisionAgentRequest(
-            input_type=request.input_type,
-            input_data=request.input_data
+        vision_result = await vision_agent_endpoint(
+            VisionAgentRequest(input_type=request.input_type, input_data=request.input_data)
         )
-        vision_result = await vision_agent_endpoint(vision_request)
-        
+
         # Step 2: Code Agent
-        code_request = CodeAgentRequest(
-            layout=vision_result.layout,
-            framework=request.framework
-        )
-        code_result = await code_agent_endpoint(code_request)
-        
+        code_result = await code_agent_endpoint(CodeAgentRequest(layout=vision_result.layout, framework=request.framework))
+
         # Step 3: Evaluator Agent
-        evaluator_request = EvaluatorAgentRequest(
-            generated_code=code_result.generated_code
-        )
-        evaluation_result = await evaluator_agent_endpoint(evaluator_request)
-        
+        evaluation_result = await evaluator_agent_endpoint(EvaluatorAgentRequest(generated_code=code_result.generated_code))
+
         return OrchestratorResponse(
             vision_result=vision_result,
             code_result=code_result,
             evaluation_result=evaluation_result,
-            success=True
+            success=True,
         )
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Orchestrator failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Orchestrator failed: {e}")
 
 
-# --- STREAMING ORCHESTRATOR ENDPOINT ---
+# -------------------------------------------------------------------
+# ------------------- STREAMING ORCHESTRATOR -------------------------
+# -------------------------------------------------------------------
+
 @router.get("/orchestrate-stream")
 def orchestrate_stream(input_type: str = "voice", input_data: str = "Create a mood tracker app"):
-    """
-    Streaming version of orchestrator for real-time updates
-    """
+    """Streaming orchestrator for real-time updates"""
     def stream_response():
         yield "🚀 Orchestrator started...\n\n"
 
         try:
+            if not client:
+                yield "❌ Error: Groq client not initialized. Set GROQ_API_KEY in .env\n"
+                return
+
             # Vision Agent
             yield "🎤 Running Vision Agent...\n"
-            vision_request = VisionAgentRequest(input_type=input_type, input_data=input_data)
-            # Note: We can't use async in generator, so we'll call the sync version
-            prompt = f"""
-            You are a UI/UX layout designer AI.
-            Convert this {input_type} description into a structured layout.
-            Input: {input_data}
-            """
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt}]
+            vision_prompt = f"You are a UI/UX layout designer AI.\nInput type: {input_type}\nInput: {input_data}"
+            vision_response = client.chat.completions.create(
+                model="llama-3.1-8b-instant", messages=[{"role": "user", "content": vision_prompt}]
             )
-            layout = response.choices[0].message.content
+            layout = vision_response.choices[0].message.content
             yield f"✅ Vision Agent Output:\n{layout}\n\n"
 
             # Code Agent
             yield "⚙️ Running Code Agent...\n"
-            code_prompt = f"""
-            Generate production-ready React + FastAPI code for: {layout}
-            Return only code, no explanations.
-            """
+            code_prompt = f"Generate React + FastAPI code for layout: {layout}"
             code_response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": code_prompt}]
+                model="llama-3.1-8b-instant", messages=[{"role": "user", "content": code_prompt}]
             )
-            code = code_response.choices[0].message.content
-            yield f"✅ Code Generated!\n\n"
+            yield "✅ Code Generated Successfully!\n\n"
 
-            # Evaluator Agent
-            yield "🧪 Running Evaluator Agent...\n"
-            eval_prompt = f"""
-            Review this code and provide feedback: {code[:500]}...
-            """
+            # Evaluation Agent
+            yield "🧪 Evaluating Code...\n"
+            eval_prompt = f"Review this code and suggest improvements: {code_response.choices[0].message.content[:500]}"
             eval_response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": eval_prompt}]
+                model="llama-3.1-8b-instant", messages=[{"role": "user", "content": eval_prompt}]
             )
             evaluation = eval_response.choices[0].message.content
             yield f"🧾 Evaluation Result:\n{evaluation}\n\n"
 
             yield "🎉 All Agents Completed Successfully!\n"
-            
+
         except Exception as e:
-            yield f"❌ Error: {str(e)}\n"
+            yield f"❌ Error: {e}\n"
 
     return StreamingResponse(stream_response(), media_type="text/plain")

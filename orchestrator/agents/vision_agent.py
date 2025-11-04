@@ -1,13 +1,20 @@
-# agents/vision_agent.py
-from groq import Groq
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# ✅ Import Groq with fallback for old versions
+from groq import Groq
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# Initialize Groq client (same key and model as other agents)
-api_key = ""
+
+
+# ✅ Load API key from .env
+load_dotenv()
+api_key = os.getenv("GROQ_API_KEY")
+
+if not api_key:
+    raise ValueError("❌ GROQ_API_KEY is missing! Add it to your .env file in project root.")
+
+# ✅ Initialize Groq client
 client = Groq(api_key=api_key)
 
 def process_input(input_type, input_data):
@@ -40,11 +47,13 @@ def process_input(input_type, input_data):
             temperature=0.5,
         )
 
-        response = completion.choices[0].message.content
+        response = completion.choices[0].message.content.strip()
         print("✅ Vision Agent completed successfully!")
         print(response)
+
+        # Return JSON-structured layout for downstream agents
         return {"layout": response}
 
     except Exception as e:
         print("❌ Vision Agent failed:", e)
-        return {"layout": "basic app layout"}
+        return {"layout": "fallback layout (error during LLM processing)"}

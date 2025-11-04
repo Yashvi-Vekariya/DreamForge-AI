@@ -1,13 +1,20 @@
-# agents/code_agent.py
-from groq import Groq
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
 
-# Load .env file
+# ✅ Import Groq with fallback for all versions
+from groq import Groq
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+
+
+# ✅ Load API key from .env
 load_dotenv()
+api_key = os.getenv("GROQ_API_KEY")
 
-# Initialize Groq client
-api_key = ""
+if not api_key:
+    raise ValueError("❌ GROQ_API_KEY is missing! Add it to your .env file in project root.")
+
+# ✅ Initialize Groq client
 client = Groq(api_key=api_key)
 
 def generate_code(layout):
@@ -22,9 +29,9 @@ def generate_code(layout):
     {layout}
 
     ⚠️ Important:
-    - Respond ONLY with clean runnable code (no explanations, no markdown, no comments like "Here's the code").
-    - Prefer Python (Streamlit or Flask) or MERN stack format if suitable.
-    - Do not include ``` in your response.
+    - Respond ONLY with clean runnable code (no explanations, no markdown, no comments).
+    - Prefer Python (Streamlit or Flask) or MERN stack if suitable.
+    - Do not include ``` in the response.
     """
 
     try:
@@ -36,23 +43,20 @@ def generate_code(layout):
 
         code_output = completion.choices[0].message.content
 
-        # 🧹 Clean the response (remove markdown artifacts if any)
-        cleaned_code = []
-        for line in code_output.splitlines():
-            if line.strip().startswith("```"):
-                continue
-            cleaned_code.append(line)
-        final_code = "\n".join(cleaned_code).strip()
+        # 🧹 Clean response: remove triple backticks if any
+        final_code = "\n".join(
+            [line for line in code_output.splitlines() if not line.strip().startswith("```")]
+        ).strip()
 
-        # 💾 Save generated code to file
-        output_path = os.path.join(os.getcwd(), "generated_app.py")
-        with open(output_path, "w", encoding="utf-8") as f:
+        # 💾 Optionally, save the generated code
+        output_file = os.path.join(os.getcwd(), "generated_app.py")
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(final_code)
 
         print("✅ Code Agent completed successfully!")
-        print(f"💾 Code saved to {output_path}")
+        print(f"💾 Code saved to: {output_file}")
         return final_code
 
     except Exception as e:
-        print("❌ Groq API call failed:", e)
+        print("❌ Code Agent failed:", e)
         return None

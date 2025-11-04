@@ -1,0 +1,87 @@
+📂 Project Name: DreamForge AI (MVP)
+
+👤 Developed by: Yashvi Vekariya  
+🔗 GitHub Repo: DreamForge-AI  
+🧠 Role: AI Agent Engineer & Full Stack Developer  
+
+════════════════════════════════════
+1. 📌 PROJECT OVERVIEW
+════════════════════════════════════
+DreamForge AI is a cutting-edge **AI-based app builder** that takes a user's **voice command or sketch** and turns it into a working web app. It functions as a creative bridge between _imagination and execution_, powered by AI models, multi-agent orchestration, and code generation engines.
+
+It:
+- Transforms ideas into code (HTML/JS)
+- Understands voice prompts
+- Converts rough UI sketches into deployable apps
+- Uses Groq AI for faster inference
+- Automates frontend + backend setups
+
+════════════════════════════════════
+2. 🚀 KEY FEATURES
+════════════════════════════════════
+✅ Text-to-App Generation  
+✅ Voice-to-App UI Builder  
+✅ Sketch-to-Web UI Prototype  
+✅ Multi-Agent Workflow (Planner, Code Writer, UI Designer)  
+✅ Real-time preview and execution  
+✅ Fast code generation using Groq API  
+✅ Runs on FastAPI (backend) and Next.js (frontend)
+
+════════════════════════════════════
+3. 🧠 AGENT ROLES
+════════════════════════════════════
+| Agent              | Responsibility                                             |
+|--------------------|-------------------------------------------------------------|
+| UI Designer Agent  | Converts sketches/voice into UI layout                     |
+| Code Writer Agent  | Generates production-level code (HTML, JS, CSS)            |
+| Planner Agent      | Coordinates prompt analysis and flow of sub-agents         |
+| Test Agent         | Validates code and runs test stack                         |
+
+════════════════════════════════════
+4. ⚙️ TECH STACK
+════════════════════════════════════
+| Layer             | Tools / Framework                   |
+|-------------------|-------------------------------------|
+| AI & Orchestration| Groq API, LangChain                 |
+| Backend           | FastAPI (Python), Uvicorn           |
+| Frontend          | Next.js, React                      |
+| Agents            | LangGraph (custom workflow)         |
+| Drawing Input     | Canvas-based sketch parser          |
+| Deployment        | Docker, Vercel (for frontend)       |
+| Automation        | GitHub Actions                      |
+
+════════════════════════════════════
+5. 🧪 EXAMPLE USING PROMPT (INTERVIEW USE)
+════════════════════════════════════
+➡️ Prompt: "Build a task management app with 3 categories and drag-drop support"
+
+🧠 Flow:
+- Voice/Text parsed by Planner Agent
+- UI Designer lays out the structure
+- Code Agent writes React/JS code for app
+- FastAPI serves preview or exports ZIP
+
+# Supported Input Types (based on your architecture)
+Input Type	Example Usage	How to Send
+1. text	"Build a mood-tracking app with a calendar view and user log"	In form/textbox
+2. sketch	Upload a UI wireframe or simple pen drawing (processed by Vision Agent)	Upload file
+3. voice	"Create a to-do list web app with sections and priority tags"	Record/upload audio
+
+Output: Ready-to-deploy **React + Tailwind app** with drag-and-drop UI.
+
+════════════════════════════════════
+6. 🏁 HOW TO RUN THIS PROJECT LOCALLY
+════════════════════════════════════
+✅ Prerequisites:
+- Python 3.10+
+- Node.js (16+)
+- Groq API Key
+
+▶️ BACKEND
+cd backend
+.\.venv\Scripts\activate 
+uvicorn app.main:app --reload --port 8000
+
+cd ../fronted
+npm install
+npm run dev

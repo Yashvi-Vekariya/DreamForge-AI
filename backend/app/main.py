@@ -1,6 +1,9 @@
 # main.py
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI
-from routes import router  # Make sure file is named routes.py and in the same folder
+from .routes import router
+# Make sure file is named routes.py and in the same folder
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="DreamForge Backend")

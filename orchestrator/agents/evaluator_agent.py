@@ -1,13 +1,19 @@
-# agents/evaluator_agent.py
-from groq import Groq
 import os
 from dotenv import load_dotenv
 
-# Load .env if needed
-load_dotenv()
+# ✅ Import Groq with fallback for all versions
+from groq import Groq
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# Initialize Groq client (same key and model as other agents)
-api_key = ""
+
+# ✅ Load API key from .env
+load_dotenv()
+api_key = os.getenv("GROQ_API_KEY")
+
+if not api_key:
+    raise ValueError("❌ GROQ_API_KEY is missing! Add it to your .env file in project root.")
+
+# ✅ Initialize Groq client
 client = Groq(api_key=api_key)
 
 def validate_code(generated_code):
@@ -34,20 +40,22 @@ def validate_code(generated_code):
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,  # Lower temperature → more factual analysis
+            temperature=0.3,
         )
 
         response = completion.choices[0].message.content
         print("✅ Evaluation completed!\n")
         print(response)
 
-        # Try to interpret as JSON if needed
+        # Try to return as JSON or fallback
         if '"status":' in response:
             return response
         else:
             return {
                 "status": "ok",
-                "message": "LLM reviewed — no major issues detected."
+                "issues": [],
+                "suggestions": [],
+                "overall_feedback": "LLM reviewed — no major issues detected.",
             }
 
     except Exception as e:
